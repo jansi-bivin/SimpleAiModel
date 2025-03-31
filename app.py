@@ -1,9 +1,14 @@
 from flask import Flask, request, render_template_string
 import tensorflow as tf
+import numpy as np
 
 app = Flask(__name__)
 
-model = tf.keras.models.load_model('model.keras')
+try:
+    model = tf.keras.models.load_model('model.keras')
+except Exception as e:
+    model = None
+    print("Model Load Error:", e)
 
 HTML_PAGE = '''
 <!doctype html>
@@ -16,7 +21,7 @@ HTML_PAGE = '''
             <button type="submit">Predict y</button>
         </form>
         {% if prediction %}
-            <h3>Prediction (y): {{ prediction }}</h3>
+            <h3>{{ prediction }}</h3>
         {% endif %}
     </body>
 </html>
@@ -24,13 +29,20 @@ HTML_PAGE = '''
 
 @app.route('/', methods=['GET', 'POST'])
 def predict():
+    if model is None:
+        return render_template_string(HTML_PAGE, prediction="Model failed to load. Check logs.")
+
     prediction = None
     if request.method == 'POST':
-        x = float(request.form['x_value'])
-        x_scaled = x / 50000.0
-        y_scaled = model.predict([[x_scaled]])
-        y_pred = y_scaled[0][0] * (2 * 50000 + 15)
-        prediction = round(y_pred, 2)
+        try:
+            x = float(request.form['x_value'])
+            x_scaled = x / 50000.0
+            input_array = np.array([[x_scaled]])
+            y_scaled = model.predict(input_array)
+            y_pred = y_scaled[0][0] * (2 * 50000 + 15)
+            prediction = f"Prediction (y): {round(y_pred, 2)}"
+        except Exception as e:
+            prediction = f"Error during prediction: {e}"
     return render_template_string(HTML_PAGE, prediction=prediction)
 
 if __name__ == '__main__':
